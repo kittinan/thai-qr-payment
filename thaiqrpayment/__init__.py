@@ -5,7 +5,7 @@ import base64
 import qrcode
 import os
 
-__VERSION__ = "0.0.8"
+__VERSION__ = "0.0.9"
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
 

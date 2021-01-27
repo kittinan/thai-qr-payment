@@ -33,4 +33,4 @@ pil_image = thaiqrpayment.generate(code)
 
 ## Example Image
 
-![Thai QR Payment example](./assets/example.png)
+![Thai QR Payment example](https://github.com/kittinan/thai-qr-payment/raw/main/assets/example.png?raw=true)
