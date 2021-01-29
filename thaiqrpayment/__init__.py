@@ -5,7 +5,7 @@ import base64
 import qrcode
 import os
 
-__VERSION__ = "0.0.9"
+__VERSION__ = "0.1.0"
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
 
@@ -15,7 +15,7 @@ def generate(code):
     # TODO: mode: color or black-white
 
     qr = qrcode.QRCode(
-        version=12, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=1
+        version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=1
     )
     qr.add_data(code)
     qr.make(fit=True)
