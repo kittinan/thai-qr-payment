@@ -5,31 +5,33 @@ import base64
 import qrcode
 import os
 import re
-from decimal import *
+from decimal import Decimal
 import crc16
+import math
 
 __VERSION__ = "0.1.0"
 
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
 
-ID_PAYLOAD_FORMAT = '00'
-ID_POI_METHOD = '01'
-ID_MERCHANT_INFORMATION_BOT = '29'
-ID_TRANSACTION_CURRENCY = '53'
-ID_TRANSACTION_AMOUNT = '54'
-ID_COUNTRY_CODE = '58'
-ID_CRC = '63'
+ID_PAYLOAD_FORMAT = "00"
+ID_POI_METHOD = "01"
+ID_MERCHANT_INFORMATION_BOT = "29"
+ID_TRANSACTION_CURRENCY = "53"
+ID_TRANSACTION_AMOUNT = "54"
+ID_COUNTRY_CODE = "58"
+ID_CRC = "63"
 
-PAYLOAD_FORMAT_EMV_QRCPS_MERCHANT_PRESENTED_MODE = '01'
-POI_METHOD_STATIC = '11'
-POI_METHOD_DYNAMIC = '12'
-MERCHANT_INFORMATION_TEMPLATE_ID_GUID = '00'
-BOT_ID_MERCHANT_PHONE_NUMBER = '01'
-BOT_ID_MERCHANT_TAX_ID = '02'
-BOT_ID_MERCHANT_EWALLET_ID = '03'
-GUID_PROMPTPAY = 'A000000677010111'
-TRANSACTION_CURRENCY_THB = '764'
-COUNTRY_CODE_TH = 'TH'
+PAYLOAD_FORMAT_EMV_QRCPS_MERCHANT_PRESENTED_MODE = "01"
+POI_METHOD_STATIC = "11"
+POI_METHOD_DYNAMIC = "12"
+MERCHANT_INFORMATION_TEMPLATE_ID_GUID = "00"
+BOT_ID_MERCHANT_PHONE_NUMBER = "01"
+BOT_ID_MERCHANT_TAX_ID = "02"
+BOT_ID_MERCHANT_EWALLET_ID = "03"
+GUID_PROMPTPAY = "A000000677010111"
+TRANSACTION_CURRENCY_THB = "764"
+COUNTRY_CODE_TH = "TH"
+
 
 def generate(code):
 
@@ -48,7 +50,22 @@ def generate(code):
     logo_img = Image.open("{}/assets/logo.png".format(SCRIPT_PATH))
     template_img = Image.open("{}/assets/template.png".format(SCRIPT_PATH))
 
-    # Center log image
+    # Logo image area should not more than 5% of qr code area
+    qr_image_area = qr_img.size[0] * qr_img.size[1]
+    logo_img_area = logo_img.size[0] * logo_img.size[1]
+    pct_logo_area = math.ceil(logo_img_area / qr_image_area)
+
+    if pct_logo_area > 0.05:
+        # Resize logo
+        ratio = (qr_image_area * 0.05) / logo_img_area
+        logo_img = logo_img.resize(
+            (
+                round(logo_img.size[0] * ratio),
+                round(logo_img.size[1] * ratio),
+            )
+        )
+
+    # Center logo image
     pos = ((qr_img.size[0] - logo_img.size[0]) // 2, (qr_img.size[1] - logo_img.size[1]) // 2)
     qr_img.paste(logo_img, pos, mask=logo_img.split()[3])
 
@@ -84,20 +101,51 @@ def to_base64(code, include_uri=False):
 
 
 def generate_code_from_mobile(number, amount):
-    input = sanitize_input(number)
-    pp_type = BOT_ID_MERCHANT_EWALLET_ID if len(input) >= 15 else BOT_ID_MERCHANT_TAX_ID if len(input) >= 13 else BOT_ID_MERCHANT_PHONE_NUMBER 
+
+    sanitized_number = sanitize_input(number)
+    pp_type = (
+        BOT_ID_MERCHANT_EWALLET_ID
+        if len(sanitized_number) >= 15
+        else BOT_ID_MERCHANT_TAX_ID
+        if len(sanitized_number) >= 13
+        else BOT_ID_MERCHANT_PHONE_NUMBER
+    )
+
     pp_payload = generate_txt(ID_PAYLOAD_FORMAT, PAYLOAD_FORMAT_EMV_QRCPS_MERCHANT_PRESENTED_MODE)
-    pp_amount_type = generate_txt(ID_POI_METHOD, POI_METHOD_DYNAMIC if amount else POI_METHOD_STATIC)
-    pp_merchant_info = generate_txt(ID_MERCHANT_INFORMATION_BOT,generate_txt(MERCHANT_INFORMATION_TEMPLATE_ID_GUID, GUID_PROMPTPAY) + generate_txt(pp_type, format_input(input) ))
+    pp_amount_type = generate_txt(
+        ID_POI_METHOD, POI_METHOD_DYNAMIC if amount else POI_METHOD_STATIC
+    )
+
+    pp_merchant_info = generate_txt(
+        ID_MERCHANT_INFORMATION_BOT,
+        generate_txt(MERCHANT_INFORMATION_TEMPLATE_ID_GUID, GUID_PROMPTPAY)
+        + generate_txt(pp_type, format_input(sanitized_number)),
+    )
+
     pp_country_code = generate_txt(ID_COUNTRY_CODE, COUNTRY_CODE_TH)
     pp_currency = generate_txt(ID_TRANSACTION_CURRENCY, TRANSACTION_CURRENCY_THB)
-    pp_decimal_value = (amount if is_positive_decimal(amount) else 0) and generate_txt(ID_TRANSACTION_AMOUNT, format_amount(amount))
-    raw_data = pp_payload + pp_amount_type + pp_merchant_info + pp_country_code + pp_currency + pp_decimal_value + ID_CRC + '04' 
-    return raw_data + str.upper(hex(crc16.crc16xmodem(raw_data.encode('ascii'),0xffff)).replace('0x',''))
+    pp_decimal_value = (amount if is_positive_decimal(amount) else 0) and generate_txt(
+        ID_TRANSACTION_AMOUNT, format_amount(amount)
+    )
+
+    raw_data = (
+        pp_payload
+        + pp_amount_type
+        + pp_merchant_info
+        + pp_country_code
+        + pp_currency
+        + pp_decimal_value
+        + ID_CRC
+        + "04"
+    )
+
+    return raw_data + str.upper(
+        hex(crc16.crc16xmodem(raw_data.encode("ascii"), 0xFFFF)).replace("0x", "")
+    )
 
 
 def sanitize_input(input):
-    return re.sub(r'(\D.*?)', '', input)
+    return re.sub(r"(\D.*?)", "", input)
 
 
 def generate_txt(id, value):
@@ -106,8 +154,9 @@ def generate_txt(id, value):
 
 def format_input(id):
     numbers = sanitize_input(id)
-    if len(numbers) >= 13: return numbers
-    return (re.sub(r'^0', '66', numbers)).zfill(13)
+    if len(numbers) >= 13:
+        return numbers
+    return (re.sub(r"^0", "66", numbers)).zfill(13)
 
 
 def format_amount(amount):
